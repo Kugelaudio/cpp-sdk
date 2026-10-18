@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(kugelaudio
-  VERSION 0.1.0
+  VERSION 0.1.1
   DESCRIPTION "Official C++ SDK for the KugelAudio text-to-speech API"
   HOMEPAGE_URL "https://github.com/Kugelaudio/cpp-sdk"
   LANGUAGES CXX)
