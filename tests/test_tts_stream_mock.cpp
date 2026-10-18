@@ -177,6 +177,88 @@ TEST(TtsStreamMock, UpdateSettingsReturnsEffectiveSettings) {
   EXPECT_THROW(client.tts().update_settings({}), ka::ValidationError);
 }
 
+// Regression: `samples` came from the final frame's `total_samples`, which
+// counts native 24 kHz samples, so 8 kHz / mu-law streams reported a 3x
+// (or 1.5x at 16 kHz) duration_seconds(); `dur_ms` is native too, and both
+// ignore `speed`.
+TEST(TtsStreamMock, SamplesCountTheDeliveredRateNotTheNativeOne) {
+  MockWsServer server([](WsPeer& peer, const std::string&, bool) {
+    const ka::Bytes mulaw{0xFF, 0x7F, 0x80, 0x00};
+    peer.send(json{{"audio", ka::detail::base64_encode(mulaw)},
+                   {"enc", "mulaw"},
+                   {"idx", 0},
+                   {"sr", 8000},
+                   {"samples", 4}}
+                  .dump());
+    peer.send(R"({"final":true,"chunks":1,"total_samples":12,"dur_ms":1.5})");
+  });
+  ka::Client client(ka::testing::mock_options(server.url()));
+  ka::GenerateRequest request;
+  request.text = "Telephony";
+  request.voice_id = 1;
+  request.language = "en";
+  request.output_format = "ulaw_8000";
+  const auto result = client.tts().stream(request);
+  EXPECT_EQ(result.encoding, "mulaw");
+  EXPECT_EQ(result.sample_rate, 8000);
+  EXPECT_EQ(result.samples, 4);
+  EXPECT_DOUBLE_EQ(result.duration_seconds(), 4.0 / 8000);
+  EXPECT_DOUBLE_EQ(result.duration_ms, 0.5);
+}
+
+// Regression: stream() always sent cfg_scale, speed, max_new_tokens and
+// normalize, so the server's sticky defaults from update_settings never
+// applied, and they were lost when the pooled socket reconnected.
+TEST(TtsStreamMock, UpdateSettingsAppliesToLaterPooledStreams) {
+  MockWsServer server([](WsPeer& peer, const std::string& message, bool) {
+    const json data = json::parse(message);
+    if (data.contains("update_settings")) {
+      peer.send(json{{"settings_updated", true}, {"settings", data["update_settings"]}}.dump());
+      return;
+    }
+    peer.send(audio_frame(0, {1, 0}));
+    peer.send(R"({"final":true})");
+  });
+  ka::Client client(ka::testing::mock_options(server.url()));
+  ka::GenerationSettings settings;
+  settings.speed = 1.2;
+  settings.cfg_scale = 1.5;
+  settings.language = "de";
+  client.tts().update_settings(settings);
+
+  ka::GenerateRequest request;
+  request.text = "Hallo";
+  request.voice_id = 1;
+  client.tts().stream(request);  // fields at their defaults take the sticky values
+  ka::GenerateRequest own = request;
+  own.speed = 0.9;
+  own.language = "en";
+  client.tts().stream(own);  // explicit values win
+  client.tts().disconnect();
+  client.tts().stream(request);  // a reconnected pool keeps the sticky values
+  ka::StreamOptions separate;
+  separate.reuse_connection = false;
+  client.tts().stream(request, {}, separate);  // not the pooled connection
+
+  const auto sent = server.received();
+  ASSERT_EQ(sent.size(), 5u);
+  const json first = json::parse(sent.at(1));
+  EXPECT_EQ(first["speed"], 1.2);
+  EXPECT_EQ(first["cfg_scale"], 1.5);
+  EXPECT_EQ(first["language"], "de");
+  const json explicit_values = json::parse(sent.at(2));
+  EXPECT_EQ(explicit_values["speed"], 0.9);
+  EXPECT_EQ(explicit_values["cfg_scale"], 1.5);
+  EXPECT_EQ(explicit_values["language"], "en");
+  const json reconnected = json::parse(sent.at(3));
+  EXPECT_EQ(reconnected["speed"], 1.2);
+  EXPECT_EQ(reconnected["language"], "de");
+  const json unpooled = json::parse(sent.at(4));
+  EXPECT_EQ(unpooled["speed"], 1.0);
+  EXPECT_FALSE(unpooled.contains("language"));
+  EXPECT_EQ(server.connections(), 3);
+}
+
 TEST(TtsStreamMock, OwnConnectionWhenNotReusing) {
   MockWsServer server([](WsPeer& peer, const std::string&, bool) {
     peer.send(audio_frame(0, {5, 0}));

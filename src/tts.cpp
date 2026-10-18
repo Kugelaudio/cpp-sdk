@@ -24,6 +24,9 @@ struct PooledTtsSocket {
   /// Socket of the stream running now (pooled or its own), for cancel().
   std::shared_ptr<WsConnection> active;
   bool cancel_sent = false;
+  /// Defaults set with update_settings(), applied by the client to every
+  /// pooled stream (they survive a reconnect, unlike the server's copy).
+  GenerationSettings sticky;
 };
 
 }  // namespace detail
@@ -82,6 +85,27 @@ int parse_rate(const std::string& text, const char* source) {
     // KEEP-JUSTIFIED: rethrown below as a typed error naming the source.
   }
   throw KugelAudioError(std::string("Unexpected sample rate in ") + source + ": '" + text + "'.");
+}
+
+/// `request` with the pooled socket's sticky defaults filled in. GenerateRequest
+/// cannot leave cfg_scale, speed, max_new_tokens or normalize unset, so a field
+/// still at its default value takes the sticky value; an explicit other value
+/// wins. Without this the request always overrode the server's sticky copy.
+GenerateRequest with_sticky(GenerateRequest request, const GenerationSettings& sticky) {
+  const GenerateRequest defaults;
+  if (sticky.cfg_scale && request.cfg_scale == defaults.cfg_scale) {
+    request.cfg_scale = *sticky.cfg_scale;
+  }
+  if (sticky.speed && request.speed == defaults.speed) request.speed = *sticky.speed;
+  if (sticky.max_new_tokens && request.max_new_tokens == defaults.max_new_tokens) {
+    request.max_new_tokens = *sticky.max_new_tokens;
+  }
+  if (sticky.normalize && request.normalize == defaults.normalize) {
+    request.normalize = *sticky.normalize;
+  }
+  if (sticky.temperature && !request.temperature) request.temperature = sticky.temperature;
+  if (sticky.language && !request.language) request.language = sticky.language;
+  return request;
 }
 
 [[noreturn]] void throw_closed(int code, const std::string& reason, detail::diag::Operation& op) {
@@ -145,8 +169,9 @@ void run_stream(detail::PooledTtsSocket& pool, const detail::ClientCore& core,
       std::rethrow_exception(error);
     }
     if (detail::truthy(data, "final")) {
-      result.samples = data.value("total_samples", received_bytes / 2);
-      result.duration_ms = data.value("dur_ms", 0.0);
+      // `total_samples` and `dur_ms` count the native 24 kHz audio before
+      // resampling and the speed change; `samples` and `duration_ms` are
+      // derived from the delivered bytes below instead.
       result.generation_ms = data.value("gen_ms", 0.0);
       result.rtf = data.value("rtf", 0.0);
       result.usage = detail::usage_from_payload(data);
@@ -176,9 +201,10 @@ void run_stream(detail::PooledTtsSocket& pool, const detail::ClientCore& core,
       result.word_timestamps.insert(result.word_timestamps.end(), stamps.begin(), stamps.end());
     }
   }
-  if (result.samples == 0 && received_bytes > 0) {
-    result.samples = received_bytes / bytes_per_sample(result.encoding);
-  }
+  result.samples = received_bytes / bytes_per_sample(result.encoding);
+  result.duration_ms = result.sample_rate > 0
+                           ? 1000.0 * static_cast<double>(result.samples) / result.sample_rate
+                           : 0.0;
 
   const bool cancel_sent = finish();
   if (cancel_sent && !result.interrupted) {
@@ -269,14 +295,22 @@ AudioResponse TtsResource::stream(const GenerateRequest& request, const StreamCa
   AudioResponse result;
   result.sample_rate = request.sample_rate;
   try {
-    const std::string body = detail::dump_json(detail::generate_body(request, true));
-    core_->warn_if_no_language(request.language, request.normalize);
     if (options.reuse_connection) {
       std::lock_guard<std::mutex> serial(pool_->stream_mutex);
+      GenerationSettings sticky;
+      {
+        std::lock_guard<std::mutex> lock(pool_->mutex);
+        sticky = pool_->sticky;
+      }
+      const GenerateRequest effective = with_sticky(request, sticky);
+      const std::string body = detail::dump_json(detail::generate_body(effective, true));
+      core_->warn_if_no_language(effective.language, effective.normalize);
       op.set_stage(detail::diag::kStageConnecting);
       auto socket = pooled(*pool_, *core_, request.model_id, &op);
       run_stream(*pool_, *core_, socket, true, body, callbacks, options, op, result);
     } else {
+      const std::string body = detail::dump_json(detail::generate_body(request, true));
+      core_->warn_if_no_language(request.language, request.normalize);
       op.set_stage(detail::diag::kStageHandshake);
       std::shared_ptr<WsConnection> socket(
           WsConnection::open(core_->ws_options("/ws/tts", {{"model_id", request.model_id}})));
@@ -338,6 +372,15 @@ GenerationSettings TtsResource::update_settings(const GenerationSettings& settin
     const json data = detail::parse_json(frame->data, "/ws/tts");
     if (detail::truthy(data, "error")) std::rethrow_exception(detail::classify_ws_frame(data));
     if (detail::truthy(data, "settings_updated")) {
+      // Remember only after the server accepted (validated) the change.
+      std::lock_guard<std::mutex> lock(pool_->mutex);
+      GenerationSettings& sticky = pool_->sticky;
+      if (settings.cfg_scale) sticky.cfg_scale = settings.cfg_scale;
+      if (settings.temperature) sticky.temperature = settings.temperature;
+      if (settings.speed) sticky.speed = settings.speed;
+      if (settings.max_new_tokens) sticky.max_new_tokens = settings.max_new_tokens;
+      if (settings.language) sticky.language = settings.language;
+      if (settings.normalize) sticky.normalize = settings.normalize;
       return detail::generation_settings_from_json(data.value("settings", json::object()));
     }
   }

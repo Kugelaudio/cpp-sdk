@@ -68,9 +68,14 @@ class TtsResource {
   /// when no stream is running.
   void cancel();
 
-  /// Set sticky generation defaults on the pooled `/ws/tts` connection
-  /// (`update_settings`); a later request's own values still win. Returns
-  /// the defaults now in effect.
+  /// Set sticky generation defaults for stream() on the pooled `/ws/tts`
+  /// connection (`update_settings`). They apply to every later pooled
+  /// stream, also after the socket reconnects or switches model; streams
+  /// with `reuse_connection = false` do not use them. A request field left
+  /// at its default (`cfg_scale` 2.0, `speed` 1.0, `max_new_tokens` 2048,
+  /// `normalize` true, `temperature`/`language` unset) takes the sticky
+  /// value; any other value in the request wins. Returns the defaults the
+  /// server now has in effect.
   /// @throws ValidationError when `settings` is empty or rejected.
   GenerationSettings update_settings(const GenerationSettings& settings);
 

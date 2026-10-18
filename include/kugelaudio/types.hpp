@@ -336,7 +336,9 @@ struct AudioResponse {
   int sample_rate = 24000;
   /// "pcm_s16le", "mulaw" or "alaw".
   std::string encoding = "pcm_s16le";
+  /// Samples delivered at `sample_rate` (after resampling and `speed`).
   std::int64_t samples = 0;
+  /// Duration of the delivered audio in milliseconds.
   double duration_ms = 0.0;
   /// Server generation time (WebSocket `final`); 0 for REST.
   double generation_ms = 0.0;

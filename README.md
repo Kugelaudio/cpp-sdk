@@ -49,10 +49,18 @@ Configure your project with `-DCMAKE_PREFIX_PATH=/opt/kugelaudio`.
 
 ### vcpkg (overlay port)
 
-The repository carries a vcpkg port in `ports/kugelaudio`:
+Each GitHub release carries the port files (`portfile.cmake`, `vcpkg.json`,
+`usage`) with the release tarball's SHA-512 filled in. The copy in
+`ports/kugelaudio` of a git checkout is a template with a placeholder hash and
+does not install.
 
 ```bash
-vcpkg install kugelaudio --overlay-ports=/path/to/cpp-sdk/ports
+mkdir -p ports/kugelaudio
+for f in portfile.cmake vcpkg.json usage; do
+  curl -fsSL -o "ports/kugelaudio/$f" \
+    "https://github.com/Kugelaudio/cpp-sdk/releases/download/v0.1.0/$f"
+done
+vcpkg install kugelaudio --overlay-ports=ports
 ```
 
 ```cmake
@@ -104,8 +112,10 @@ kugelaudio::AudioResponse result = client.tts().stream(request, callbacks);
 
 `stream()` reuses one pooled WebSocket (`/ws/tts`) across calls. From another
 thread, `client.tts().cancel()` barges in: the stream returns with
-`result.interrupted == true`. `client.tts().update_settings(...)` changes the
-sticky generation defaults of that socket.
+`result.interrupted == true`. `client.tts().update_settings(...)` sets sticky
+generation defaults for every later pooled `stream()`, also across reconnects:
+a request field left at its default (`speed` 1.0, `cfg_scale` 2.0, ...) takes
+the sticky value, any other value wins.
 
 ### Stream LLM tokens (one turn per reply)
 
