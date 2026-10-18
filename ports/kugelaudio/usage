@@ -1,0 +1,4 @@
+kugelaudio provides CMake targets:
+
+  find_package(kugelaudio CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE kugelaudio::kugelaudio)

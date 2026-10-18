@@ -1,0 +1,21 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "kugelaudio",
+  "version-semver": "0.1.0",
+  "description": "Official C++ SDK for the KugelAudio text-to-speech API",
+  "homepage": "https://github.com/Kugelaudio/cpp-sdk",
+  "license": "MIT",
+  "dependencies": [
+    "curl",
+    "ixwebsocket",
+    "nlohmann-json"
+  ],
+  "features": {
+    "tests": {
+      "description": "Build the unit and mock-server tests",
+      "dependencies": [
+        "gtest"
+      ]
+    }
+  }
+}

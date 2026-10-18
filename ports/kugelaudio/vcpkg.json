@@ -1,0 +1,20 @@
+{
+  "name": "kugelaudio",
+  "version-semver": "0.1.0",
+  "description": "Official C++ SDK for the KugelAudio text-to-speech API",
+  "homepage": "https://github.com/Kugelaudio/cpp-sdk",
+  "license": "MIT",
+  "dependencies": [
+    "curl",
+    "ixwebsocket",
+    "nlohmann-json",
+    {
+      "name": "vcpkg-cmake",
+      "host": true
+    },
+    {
+      "name": "vcpkg-cmake-config",
+      "host": true
+    }
+  ]
+}
