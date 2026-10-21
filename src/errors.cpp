@@ -9,8 +9,8 @@ namespace kugelaudio {
 
 namespace {
 
-constexpr const char* kApiKeysUrl = "https://app.kugelaudio.com/settings/api-keys";
-constexpr const char* kBillingUrl = "https://app.kugelaudio.com/billing";
+constexpr const char* kApiKeysUrl = "https://www.kugelaudio.com/dashboard";
+constexpr const char* kBillingUrl = "https://www.kugelaudio.com/dashboard";
 
 std::string with_request_id(const std::string& message, const ErrorDetails& details) {
   if (details.request_id && !details.request_id->empty()) {

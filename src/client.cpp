@@ -43,7 +43,7 @@ ClientCore::ClientCore(const ClientOptions& options, diag::Sender sender)
   if (options.api_key.empty()) {
     throw ValidationError(
         "KugelAudio API key is missing. Pass it to the client. Get a key at "
-        "https://app.kugelaudio.com/settings/api-keys.");
+        "https://www.kugelaudio.com/dashboard.");
   }
   auto [clean_key, key_region] = parse_api_key(options.api_key);
   api_key = std::move(clean_key);

@@ -145,7 +145,7 @@ TEST(Errors, FastApiDetailListAndRawText) {
 
 TEST(Errors, AuthenticationDefaultMessage) {
   const auto error = rethrow_as<ka::AuthenticationError>(kd::classify_http_response(401, "", {}));
-  EXPECT_NE(error.message().find("app.kugelaudio.com/settings/api-keys"), std::string::npos);
+  EXPECT_NE(error.message().find("www.kugelaudio.com/dashboard"), std::string::npos);
   EXPECT_EQ(error.error_code(), "UNAUTHORIZED");
 }
 
