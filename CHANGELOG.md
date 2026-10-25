@@ -1,3 +1,5 @@
+## [kugelaudio-cpp-sdk-v0.1.2](https://github.com/Kugelaudio/KugelAudio/compare/cpp-sdk-v0.1.1...cpp-sdk-v0.1.2) (2026-10-25)
+
 ## [kugelaudio-cpp-sdk-v0.1.1](https://github.com/Kugelaudio/KugelAudio/compare/cpp-sdk-v0.1.0...cpp-sdk-v0.1.1) (2026-10-18)
 
 # Changelog

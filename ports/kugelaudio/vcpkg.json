@@ -1,6 +1,6 @@
 {
   "name": "kugelaudio",
-  "version-semver": "0.1.1",
+  "version-semver": "0.1.2",
   "description": "Official C++ SDK for the KugelAudio text-to-speech API",
   "homepage": "https://github.com/Kugelaudio/cpp-sdk",
   "license": "MIT",
