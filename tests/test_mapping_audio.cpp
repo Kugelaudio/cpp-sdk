@@ -108,6 +108,39 @@ TEST(Frames, AudioChunkDecoding) {
   EXPECT_THROW(kd::audio_chunk_from_json(json{{"audio", "AA=="}}), ka::KugelAudioError);
 }
 
+TEST(Frames, WordTimestampFrameCarriesOriginalOffsetsAndTexts) {
+  const auto stamps = kd::word_timestamps_from_frame(json::parse(
+      R"({"word_timestamps":[{"word":"twelve","start_ms":0,"end_ms":300,"char_start":6,"char_end":12,)"
+      R"("original_char_start":6,"original_char_end":12,"score":1.0}],"chunk_id":0,)"
+      R"("text":"About twelve thousand visitors.","original_text":"About 12,000 visitors."})"));
+  ASSERT_EQ(stamps.size(), 1u);
+  ASSERT_TRUE(stamps[0].original_char_start.has_value());
+  EXPECT_EQ(*stamps[0].original_char_start, 6);
+  EXPECT_EQ(*stamps[0].original_char_end, 12);
+  EXPECT_EQ(stamps[0].text.value_or(""), "About twelve thousand visitors.");
+  EXPECT_EQ(stamps[0].original_text.value_or(""), "About 12,000 visitors.");
+}
+
+TEST(Frames, OriginalSpanCountsCodePointsNotBytes) {
+  const auto stamps = kd::word_timestamps_from_frame(json::parse(
+      R"({"word_timestamps":[{"word":"twelve","start_ms":0,"end_ms":300,"char_start":2,"char_end":8,)"
+      R"("original_char_start":2,"original_char_end":8}],)"
+      R"("text":"\ud83d\ude00 twelve visitors.","original_text":"\ud83d\ude00 12,000 visitors."})"));
+  ASSERT_EQ(stamps.size(), 1u);
+  ASSERT_TRUE(stamps[0].original_span().has_value());
+  EXPECT_EQ(*stamps[0].original_span(), "12,000");
+}
+
+TEST(Frames, WordTimestampFrameFromOlderServerLeavesNewFieldsUnset) {
+  const auto stamps = kd::word_timestamps_from_frame(json::parse(
+      R"({"word_timestamps":[{"word":"Hi","start_ms":0,"end_ms":50,"char_start":0,"char_end":2}]})"));
+  ASSERT_EQ(stamps.size(), 1u);
+  EXPECT_FALSE(stamps[0].original_char_start.has_value());
+  EXPECT_FALSE(stamps[0].original_char_end.has_value());
+  EXPECT_FALSE(stamps[0].text.has_value());
+  EXPECT_FALSE(stamps[0].original_text.has_value());
+}
+
 TEST(Frames, WordTimestampsAndUsage) {
   const auto stamps = kd::word_timestamps_from_json(json::parse(
       R"([{"word":"Hello","start_ms":0,"end_ms":320,"char_start":0,"char_end":5,"score":1.0}])"));

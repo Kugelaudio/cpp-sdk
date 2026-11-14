@@ -33,6 +33,8 @@ DictionaryEntryList dictionary_entry_list_from_json(const json& j);
 BulkReplaceResult bulk_replace_from_json(const json& j);
 WordTimestamp word_timestamp_from_json(const json& j);
 std::vector<WordTimestamp> word_timestamps_from_json(const json& j);
+/// A whole `word_timestamps` frame: each word also carries the frame's `text` and `original_text`.
+std::vector<WordTimestamp> word_timestamps_from_frame(const json& frame);
 SessionUsage usage_from_json(const json& j);
 /// The nested `usage` block, else the top-level `total_audio_seconds`
 /// (older servers); std::nullopt when neither is present.

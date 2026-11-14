@@ -162,7 +162,7 @@ struct StreamingSession::Impl {
   }
 
   void handle_stamps(const json& data) {
-    auto stamps = detail::word_timestamps_from_json(data.at("word_timestamps"));
+    auto stamps = detail::word_timestamps_from_frame(data);
     {
       std::lock_guard<std::mutex> lock(mutex);
       last_stamps = stamps;

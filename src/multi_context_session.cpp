@@ -139,7 +139,7 @@ struct MultiContextSession::Impl {
     if (!context_id) return;
     if (detail::truthy(data, "audio")) turn_audio.insert(*context_id);
     if (detail::has(data, "word_timestamps")) {
-      auto parsed = detail::word_timestamps_from_json(data.at("word_timestamps"));
+      auto parsed = detail::word_timestamps_from_frame(data);
       {
         std::lock_guard<std::mutex> lock(mutex);
         stamps[*context_id] = parsed;

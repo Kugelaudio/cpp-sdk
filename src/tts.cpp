@@ -196,7 +196,7 @@ void run_stream(detail::PooledTtsSocket& pool, const detail::ClientCore& core,
       }
     }
     if (detail::has(data, "word_timestamps")) {
-      auto stamps = detail::word_timestamps_from_json(data["word_timestamps"]);
+      auto stamps = detail::word_timestamps_from_frame(data);
       if (callbacks.on_word_timestamps) callbacks.on_word_timestamps(stamps);
       result.word_timestamps.insert(result.word_timestamps.end(), stamps.begin(), stamps.end());
     }

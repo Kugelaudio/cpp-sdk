@@ -286,12 +286,43 @@ struct WordTimestamp {
   std::string word;
   std::int64_t start_ms = 0;
   std::int64_t end_ms = 0;
+  /// Offsets of the word in `text`, the spoken text. All offsets count Unicode
+  /// code points, not UTF-8 bytes: see `original_span()`.
   std::int64_t char_start = 0;
   std::int64_t char_end = 0;
   /// Compatibility field, currently always 1.0.
   double score = 1.0;
+  /// Offsets, in `original_text`, of the words this word speaks. Unset when the
+  /// server does not send them.
+  std::optional<std::int64_t> original_char_start;
+  std::optional<std::int64_t> original_char_end;
+  /// The frame's `text`: what the chunk spoke, after normalization. Unset when
+  /// the server does not send it.
+  std::optional<std::string> text;
+  /// The frame's `original_text`: the part of your text the chunk spoke, before
+  /// normalization. Unset when the server does not send it.
+  std::optional<std::string> original_text;
   /// Duration of the word in milliseconds.
   std::int64_t duration_ms() const noexcept { return end_ms - start_ms; }
+  /// The part of `original_text` this word speaks (UTF-8), or nullopt when the
+  /// server did not send the offsets or they fall outside the text. Converts
+  /// the code-point offsets to byte positions.
+  std::optional<std::string> original_span() const {
+    if (!original_text || !original_char_start || !original_char_end) return std::nullopt;
+    const std::string& s = *original_text;
+    std::int64_t index = 0;
+    std::size_t from = std::string::npos;
+    std::size_t to = std::string::npos;
+    for (std::size_t i = 0; i <= s.size(); ++i) {
+      const bool boundary = i == s.size() || (static_cast<unsigned char>(s[i]) & 0xC0) != 0x80;
+      if (!boundary) continue;
+      if (index == *original_char_start) from = i;
+      if (index == *original_char_end) to = i;
+      ++index;
+    }
+    if (from == std::string::npos || to == std::string::npos || to < from) return std::nullopt;
+    return s.substr(from, to - from);
+  }
 };
 
 /// Usage reported for a request, turn (`session_closed`) or context

@@ -230,6 +230,12 @@ WordTimestamp word_timestamp_from_json(const json& j) {
   w.char_start = req_int(j, "char_start");
   w.char_end = req_int(j, "char_end");
   w.score = num_or<double>(j, "score", 1.0);
+  for (const char* key : {"original_char_start", "original_char_end"}) {
+    auto it = j.find(key);
+    if (it == j.end() || !it->is_number()) continue;
+    (std::string(key) == "original_char_start" ? w.original_char_start : w.original_char_end) =
+        it->get<std::int64_t>();
+  }
   return w;
 }
 
@@ -237,6 +243,21 @@ std::vector<WordTimestamp> word_timestamps_from_json(const json& j) {
   std::vector<WordTimestamp> out;
   if (!j.is_array()) missing("word_timestamps");
   for (const auto& item : j) out.push_back(word_timestamp_from_json(item));
+  return out;
+}
+
+std::vector<WordTimestamp> word_timestamps_from_frame(const json& frame) {
+  auto out = word_timestamps_from_json(frame.at("word_timestamps"));
+  std::optional<std::string> text;
+  std::optional<std::string> original_text;
+  if (frame.contains("text") && frame["text"].is_string()) text = frame["text"].get<std::string>();
+  if (frame.contains("original_text") && frame["original_text"].is_string()) {
+    original_text = frame["original_text"].get<std::string>();
+  }
+  for (auto& w : out) {
+    w.text = text;
+    w.original_text = original_text;
+  }
   return out;
 }
 
