@@ -61,6 +61,18 @@ TEST(RestMock, VoicesListQueryAndGet) {
   EXPECT_EQ(requests[1].uri, "/v1/voices/1071");
 }
 
+// ENG-1571: false is sent, not omitted; the server's default is true.
+TEST(RestMock, VoicesListSendsIncludePublicFalse) {
+  MockHttpServer server([](const RecordedRequest&) {
+    return json_response(200, R"({"voices":[],"total":0,"limit":20,"offset":0})");
+  });
+  ka::Client client(ka::testing::mock_options(server.url()));
+  ka::VoiceListOptions options;
+  options.include_public = false;
+  client.voices().list(options);
+  EXPECT_EQ(server.requests()[0].uri, "/v1/voices?limit=20&offset=0&include_public=false");
+}
+
 TEST(RestMock, VoiceCreateIsMultipartWithConsent) {
   const auto reference = std::filesystem::temp_directory_path() / "kugelaudio-test-reference.wav";
   ka::write_wav(reference, ka::Bytes(320, 0), 16000);

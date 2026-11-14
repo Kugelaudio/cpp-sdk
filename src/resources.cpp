@@ -63,7 +63,9 @@ VoiceListResponse VoicesResource::list(const VoiceListOptions& options) const {
                     {"offset", std::to_string(options.offset)}};
   if (options.language && !options.language->empty())
     query.emplace_back("language", *options.language);
-  if (options.include_public) query.emplace_back("include_public", "true");
+  // Always sent: the server's default is true, so omitting it for false listed the
+  // public catalog anyway (ENG-1571).
+  query.emplace_back("include_public", options.include_public ? "true" : "false");
   return detail::voice_list_from_json(core_->request("GET", "/v1/voices", query));
 }
 
